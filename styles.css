@@ -1,0 +1,134 @@
+:root {
+  --brand: #8a1538;
+}
+
+* {
+  font-family: 'Poppins', system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+}
+
+.navbar-brand {
+  color: var(--brand);
+}
+
+.btn-brand {
+  background: var(--brand);
+  color: #fff;
+}
+
+.hero {
+  background: linear-gradient(rgba(0,0,0,.45), rgba(0,0,0,.45)),
+              url("C:\xampp\htdocs\the-pearl\the_pearl\assets\img\hero-room.jpg") center/cover no-repeat;
+  min-height: 70vh;
+  display: flex;
+  align-items: center;
+}
+
+
+
+.card-room img {
+  height: 180px;
+  object-fit: cover;
+}
+
+.lead-2 {
+  font-size: 1.1rem;
+}
+
+.about-hero h2 {
+  font-weight: 700;
+}
+
+.about-em {
+  font-weight: 700;
+  font-style: italic;
+  color: #0d6efd;
+}
+
+.about-section {
+  background: linear-gradient(135deg, #fdfbfb 0%, #ebedee 100%);
+  padding: 60px 0;
+}
+
+/* Feedback list badge — make name pop */
+.feedback-badge{
+  background: #e9ecef;           /* light grey */
+  color: #212529;                 /* darker text */
+  border: 1px solid #dee2e6;
+  font-weight: 700;
+  font-size: .9rem;
+  padding: .35rem .6rem;
+  border-radius: 9999px;          /* pill shape */
+  letter-spacing: .2px;
+}
+
+/* (optional) make the card a bit brighter so badge stands out more */
+.feedback-card{
+  background: #fff;
+  border: 1px solid #f1f3f5;
+  border-radius: 1rem;
+  box-shadow: 0 6px 20px rgba(0,0,0,.05);
+}
+
+.contact-section {
+  background: #f8f9fa; /* light grey background */
+}
+
+.contact-box {
+  background: #fff;             /* putih dalam box */
+  border: 1px solid #e0e0e0;    /* border halus */
+  border-radius: 12px;          /* rounded corner */
+  box-shadow: 0 6px 20px rgba(0,0,0,.05); /* soft shadow */
+}
+
+.about-section {
+  padding-top: 2rem !important; /* kecilkan padding atas */
+}
+
+/* Navbar brand logo */
+.brand-logo{
+  height: 38px;     /* adjust to your logo height */
+  width: auto;
+  display: block;
+}
+
+.brand-logo {
+  height: 100px;  /* besarkan lagi */
+  width: auto;    /* maintain ratio */
+  display: block;
+}
+
+.
+/* ===== Hero base ===== */
+.hero {
+  position: relative;
+  min-height: 80vh;
+  display: flex;
+  align-items: center;
+  color: #fff;
+}
+
+/* ===== Hero with background image ===== */
+.hero.hero-luxe {
+  /* overlay first, then the image */
+  background:
+    linear-gradient(rgba(0,0,0,.45), rgba(0,0,0,.45)),
+    url("../img/hero-luxe.jpg") center/cover no-repeat !important;
+  background-color: transparent !important; /* in case older rules set a solid color */
+}
+
+/* Optional: nicer accent color for the subheadline */
+.brand-accent {
+  color: #a10f36; /* Pearl-ish maroon */
+}
+
+/* Optional: primary CTA button style (if you don’t have it yet) */
+.btn-brand {
+  background: #a10f36;
+  border: none;
+  color: #fff;
+  padding: .8rem 1.4rem;
+  border-radius: .6rem;
+}
+.btn-brand:hover { opacity: .92; color:#fff; }
+
+
