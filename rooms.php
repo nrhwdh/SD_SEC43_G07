@@ -1,4 +1,59 @@
-<?php include 'db.php'; ?>
+<?php
+include 'db.php';
+
+/* --------- Read dates from GET & validate ---------- */
+$ci_raw = $_GET['check_in']  ?? '';
+$co_raw = $_GET['check_out'] ?? '';
+
+$check_in  = '';
+$check_out = '';
+$errors    = [];
+
+// Normalize to Y-m-d if provided
+if ($ci_raw !== '') {
+  $ts = strtotime($ci_raw);
+  if ($ts) $check_in = date('Y-m-d', $ts);
+  else $errors[] = 'Invalid check-in date.';
+}
+if ($co_raw !== '') {
+  $ts = strtotime($co_raw);
+  if ($ts) $check_out = date('Y-m-d', $ts);
+  else $errors[] = 'Invalid check-out date.';
+}
+
+// Validate range
+if ($check_in && $check_out && $check_out <= $check_in) {
+  $errors[] = 'Check-out must be after check-in.';
+}
+
+/* --------- Build rooms query ---------- */
+$params = [];
+$sql = "SELECT r.* FROM rooms r";
+
+$filtering = ($check_in && $check_out && empty($errors));
+if ($filtering) {
+  // Exclude any room that has a conflicting booking (no status filter)
+  $sql .= "
+    WHERE NOT EXISTS (
+      SELECT 1 FROM bookings b
+      WHERE b.room_id = r.id
+        AND b.check_in  < ?   -- overlap rule
+        AND b.check_out > ?
+    )
+    ORDER BY r.price DESC, r.name ASC
+  ";
+  $params = [$check_out, $check_in];
+} else {
+  $sql .= " ORDER BY r.price DESC, r.name ASC";
+}
+
+$stmt = $conn->prepare($sql);
+if ($params) {
+  $stmt->bind_param(str_repeat('s', count($params)), ...$params);
+}
+$stmt->execute();
+$roomsRes = $stmt->get_result();
+?>
 <!doctype html>
 <html lang="en">
 <head>
@@ -23,6 +78,10 @@
     .footer-bottom{background:#f5f1f3;border-top:1px solid #eee;}
     .back-to-top{position:fixed;right:18px;bottom:18px;width:42px;height:42px;border-radius:999px;border:0;background:#8a1538;color:#fff;font-weight:700;box-shadow:0 6px 20px rgba(0,0,0,.15);cursor:pointer;display:none;}
     .back-to-top:hover{opacity:.92;}
+
+    /* availability bar */
+    .mini-availability .form-label{font-size:.8rem;margin-bottom:.25rem}
+    .mini-availability .btn{white-space:nowrap}
   </style>
 </head>
 <body>
@@ -48,32 +107,80 @@
 </nav>
 
 <section class="container py-5">
-  <h1 class="fw-800 mb-4">Rooms</h1>
+  <!-- Header + availability filter -->
+  <div class="d-flex flex-column flex-lg-row align-items-lg-end justify-content-lg-between gap-3 mb-3">
+    <h1 class="fw-800 mb-0">Rooms</h1>
+
+    <form class="row g-2 align-items-end mini-availability" action="rooms.php" method="get">
+      <div class="col-auto">
+        <label class="form-label">Check-in</label>
+        <input type="date" name="check_in" class="form-control form-control-sm"
+               min="<?php echo date('Y-m-d'); ?>"
+               value="<?php echo htmlspecialchars($check_in ?: ''); ?>">
+      </div>
+      <div class="col-auto">
+        <label class="form-label">Check-out</label>
+        <input type="date" name="check_out" class="form-control form-control-sm"
+               min="<?php echo date('Y-m-d'); ?>"
+               value="<?php echo htmlspecialchars($check_out ?: ''); ?>">
+      </div>
+      <div class="col-auto">
+        <button class="btn btn-outline-secondary btn-sm">Check availability</button>
+      </div>
+      <?php if ($check_in && $check_out && empty($errors)): ?>
+      <div class="col-auto">
+        <a class="btn btn-link btn-sm" href="rooms.php">Clear</a>
+      </div>
+      <?php endif; ?>
+    </form>
+  </div>
+
+  <!-- Validation errors -->
+  <?php if (!empty($errors)): ?>
+    <div class="alert alert-danger"><?php echo implode('<br>', array_map('htmlspecialchars', $errors)); ?></div>
+  <?php endif; ?>
+
+  <!-- Result info -->
+  <?php if ($check_in && $check_out && empty($errors)): ?>
+    <div class="alert alert-info py-2 small">
+      Showing rooms available from
+      <strong><?php echo htmlspecialchars($check_in); ?></strong>
+      to
+      <strong><?php echo htmlspecialchars($check_out); ?></strong>.
+    </div>
+  <?php endif; ?>
+
   <div class="row g-4">
-<?php
-$res = $conn->query("SELECT * FROM rooms ORDER BY price DESC, name ASC");
-if($res && $res->num_rows>0){
-  while($row = $res->fetch_assoc()){
-    echo '<div class="col-md-6 col-lg-4">
-            <div class="card room-fancy h-100 shadow-sm">
-              <div class="ratio ratio-4x3">
-                <img src="'.htmlspecialchars($row['image']).'" alt="'.htmlspecialchars($row['name']).'" class="room-img">
-              </div>
-              <div class="card-body d-flex flex-column">
-                <h5 class="fw-bold mb-1">'.htmlspecialchars($row['name']).'</h5>
-                <p class="small text-muted mb-2">'.htmlspecialchars($row['beds']).' • '.htmlspecialchars($row['size']).'</p>
-                <div class="mt-auto d-flex justify-content-between align-items-center">
-                  <span class="price-tag">RM '.htmlspecialchars($row['price']).'<span class="small text-muted">/night</span></span>
-                  <a href="book.php?room_id='.(int)$row['id'].'" class="btn btn-brand btn-sm">Book</a>
+  <?php
+  if ($roomsRes && $roomsRes->num_rows > 0) {
+    while ($row = $roomsRes->fetch_assoc()) {
+      // Preserve selected dates in Book URL
+      $qs = [];
+      if ($check_in)  $qs['check_in']  = $check_in;
+      if ($check_out) $qs['check_out'] = $check_out;
+      $qs['room_id'] = (int)$row['id'];
+      $bookUrl = 'book.php?'.http_build_query($qs);
+
+      echo '<div class="col-md-6 col-lg-4">
+              <div class="card room-fancy h-100 shadow-sm">
+                <div class="ratio ratio-4x3">
+                  <img src="'.htmlspecialchars($row['image']).'" alt="'.htmlspecialchars($row['name']).'" class="room-img">
+                </div>
+                <div class="card-body d-flex flex-column">
+                  <h5 class="fw-bold mb-1">'.htmlspecialchars($row['name']).'</h5>
+                  <p class="small text-muted mb-2">'.htmlspecialchars($row['beds']).' • '.htmlspecialchars($row['size']).'</p>
+                  <div class="mt-auto d-flex justify-content-between align-items-center">
+                    <span class="price-tag">RM '.htmlspecialchars($row['price']).'<span class="small text-muted">/night</span></span>
+                    <a href="'.$bookUrl.'" class="btn btn-brand btn-sm">Book</a>
+                  </div>
                 </div>
               </div>
-            </div>
-          </div>';
+            </div>';
+    }
+  } else {
+    echo '<div class="col-12"><div class="alert alert-warning mb-0">No rooms match your selection.</div></div>';
   }
-}else{
-  echo '<div class="col-12"><div class="alert alert-warning">No rooms found.</div></div>';
-}
-?>
+  ?>
   </div>
 </section>
 
@@ -89,8 +196,10 @@ if($res && $res->num_rows>0){
       <div class="col-6 col-md-4">
         <h6 class="fw-bold mb-3">Quick Links</h6>
         <ul class="list-unstyled footer-links">
-          <li><a href="index.php">Home</a></li><li><a href="rooms.php">Rooms</a></li>
-          <li><a href="about.php">About</a></li><li><a href="contact.php">Contact</a></li>
+          <li><a href="index.php">Home</a></li>
+          <li><a href="rooms.php">Rooms</a></li>
+          <li><a href="about.php">About</a></li>
+          <li><a href="contact.php">Contact</a></li>
           <li><a href="feedback.php">Feedback</a></li>
         </ul>
       </div>
@@ -113,7 +222,12 @@ if($res && $res->num_rows>0){
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script>
-(function(){const b=document.querySelector('.back-to-top');if(!b)return;const t=()=>{b.style.display=window.scrollY>400?'inline-flex':'none'};addEventListener('scroll',t,{passive:true});t();})();
+(function(){
+  const b=document.querySelector('.back-to-top');
+  if(!b) return;
+  const t=()=>{ b.style.display = (window.scrollY>400) ? 'inline-flex' : 'none'; };
+  addEventListener('scroll',t,{passive:true}); t();
+})();
 </script>
 </body>
 </html>
