@@ -1,252 +1,173 @@
 <?php
-require_once __DIR__ . '/auth.php';
+require_once __DIR__.'/auth.php';
 require_login();
+$page_title = 'Dashboard';
+include __DIR__.'/partials/head.php';
+include __DIR__.'/partials/top.php';
 
 $me = current_admin();
-$page_title = 'Dashboard';
 
-/* -------------------- Helpers -------------------- */
-function qcount(PDO $pdo, string $sql, array $params = []) {
-  try {
-    $st = $pdo->prepare($sql);
-    $st->execute($params);
-    return (int)$st->fetchColumn();
-  } catch (Throwable $e) { return null; }
-}
-function qall(PDO $pdo, string $sql, array $params = []) {
-  try {
-    $st = $pdo->prepare($sql);
-    $st->execute($params);
-    return $st->fetchAll(PDO::FETCH_ASSOC);
-  } catch (Throwable $e) { return []; }
-}
-function has_column(PDO $pdo, string $table, string $col) {
-  try {
-    $st = $pdo->prepare("SELECT 1
-       FROM INFORMATION_SCHEMA.COLUMNS
-      WHERE TABLE_SCHEMA = DATABASE()
-        AND TABLE_NAME   = ?
-        AND COLUMN_NAME  = ?");
-    $st->execute([$table, $col]);
-    return (bool)$st->fetchColumn();
-  } catch (Throwable $e) { return false; }
-}
-function stat_cell($val) {
-  return ($val === null) ? '<span class="empty-badge">—</span>' : number_format((int)$val);
+// Dapat data count
+$totalBookings = $pdo->query("SELECT COUNT(*) FROM bookings")->fetchColumn();
+$totalRooms = $pdo->query("SELECT COUNT(*) FROM rooms")->fetchColumn();
+$totalFeedback = $pdo->query("SELECT COUNT(*) FROM feedback")->fetchColumn();
+
+// Kira feedback ikut rating
+$ratings = [1=>0,2=>0,3=>0,4=>0,5=>0];
+$st = $pdo->query("SELECT rating, COUNT(*) AS count FROM feedback GROUP BY rating");
+foreach ($st as $r) {
+  $ratings[(int)$r['rating']] = (int)$r['count'];
 }
 
-/* -------------------- STATS -------------------- */
-// Total bookings (all time)
-$totalBookings = qcount($pdo, "SELECT COUNT(*) FROM bookings");
-
-// Feedback count (all time) — change to `feedbacks` if your table name differs
-$feedbackCount = qcount($pdo, "SELECT COUNT(*) FROM feedback");
-
-// Available rooms (simple mode: direct count from rooms table)
-$availableRooms = qcount($pdo, "SELECT COUNT(*) FROM rooms");
-
-/* -------------------- CHART DATA -------------------- */
-// Bookings last 7 days by check_in
-$rows = qall($pdo, "SELECT DATE(check_in) AS d, COUNT(*) AS c
-                      FROM bookings
-                     WHERE check_in >= (CURDATE() - INTERVAL 6 DAY)
-                  GROUP BY DATE(check_in)
-                  ORDER BY d ASC");
-
-// Normalize to full 7-day series (fill missing dates with 0)
-$labels = [];
-$counts = [];
-for ($i = 6; $i >= 0; $i--) {
-  $date = (new DateTime())->modify("-{$i} day")->format('Y-m-d');
-  $labels[] = $date;
-  $counts[] = 0;
-}
-$idx = array_flip($labels);
-foreach ($rows as $r) {
-  if (isset($idx[$r['d']])) $counts[$idx[$r['d']]] = (int)$r['c'];
-}
-
-// Feedback sources (optional pie) if you have a `feedback.source` column
-$fbSources = [];
-if (has_column($pdo, 'feedback', 'source')) {
-  $fbSources = qall($pdo, "SELECT COALESCE(NULLIF(TRIM(source),''),'Unknown') AS s, COUNT(*) AS c
-                              FROM feedback
-                          GROUP BY s
-                          ORDER BY c DESC, s ASC");
-}
-
-include __DIR__ . '/partials/head.php';
-include __DIR__ . '/partials/top.php';
+// Kira bilik booked vs available
+$bookedRooms = $pdo->query("SELECT COUNT(DISTINCT room_id) FROM bookings")->fetchColumn();
+$availableRooms = max(0, $totalRooms - $bookedRooms);
 ?>
 
-<!-- Chart.js (CDN) -->
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+.hero-banner {
+  background: linear-gradient(90deg, #007bff 0%, #6dd5fa 100%);
+  color: white;
+  padding: 1rem 1.5rem;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  margin-bottom: 1.5rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.hero-banner h1 { margin: 0; font-weight: 700; }
+.hero-banner span { font-size: 0.9rem; opacity: 0.9; }
+
+.stat-card {
+  border: none;
+  border-radius: 12px;
+  transition: 0.3s ease;
+  padding: 1.2rem;
+}
+.stat-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 0 15px rgba(0,0,0,0.1);
+}
+.stat-icon {
+  font-size: 2rem;
+  opacity: 0.8;
+}
+</style>
 
 <div class="container-fluid">
 
-  <!-- Heading -->
-  <div class="d-sm-flex align-items-center justify-content-between mb-3">
-    <h1 class="h4 mb-0">Dashboard</h1>
+  <!-- 🩵 WELCOME BANNER -->
+  <div class="hero-banner">
+    <div>
+      <h1>Welcome back, <?= htmlspecialchars($me['name'] ?? 'Admin') ?> 👋</h1>
+      <span>Here’s your daily overview for The Pearl Hotel operations.</span>
+    </div>
+    <i class="bi bi-bar-chart-line fs-1"></i>
   </div>
 
-  <!-- Stat cards -->
-  <div class="row g-3 mb-3">
-    <div class="col-xl-4 col-md-6">
-      <div class="card p-3 h-100">
-        <div class="d-flex justify-content-between align-items-center sb-stat">
+  <!-- 💠 STATS CARDS -->
+  <div class="row g-3 mb-4">
+    <div class="col-md-4">
+      <div class="card stat-card shadow-sm bg-light">
+        <div class="d-flex justify-content-between align-items-center">
           <div>
-            <div class="title">TOTAL BOOKINGS</div>
-            <div class="num"><?= stat_cell($totalBookings) ?></div>
-            <div class="card-sub"><?= $totalBookings===null?'No data':'All time' ?></div>
+            <h6 class="text-muted mb-1">Total Bookings</h6>
+            <h3 class="fw-bold text-primary"><?= (int)$totalBookings ?></h3>
           </div>
-          <i class="bi bi-calendar2-check fs-2 text-primary"></i>
+          <i class="bi bi-calendar-check stat-icon text-primary"></i>
         </div>
       </div>
     </div>
 
-    <div class="col-xl-4 col-md-6">
-      <div class="card p-3 h-100">
-        <div class="d-flex justify-content-between align-items-center sb-stat">
+    <div class="col-md-4">
+      <div class="card stat-card shadow-sm bg-light">
+        <div class="d-flex justify-content-between align-items-center">
           <div>
-            <div class="title">AVAILABLE ROOMS</div>
-            <div class="num"><?= stat_cell($availableRooms) ?></div>
-            <div class="card-sub"><?= $availableRooms===null?'No data':'Live count' ?></div>
+            <h6 class="text-muted mb-1">Available Rooms</h6>
+            <h3 class="fw-bold text-warning"><?= (int)$availableRooms ?></h3>
           </div>
-          <i class="bi bi-door-open fs-2 text-success"></i>
+          <i class="bi bi-house-door stat-icon text-warning"></i>
         </div>
       </div>
     </div>
 
-    <div class="col-xl-4 col-md-6">
-      <div class="card p-3 h-100">
-        <div class="d-flex justify-content-between align-items-center sb-stat">
+    <div class="col-md-4">
+      <div class="card stat-card shadow-sm bg-light">
+        <div class="d-flex justify-content-between align-items-center">
           <div>
-            <div class="title">FEEDBACK</div>
-            <div class="num"><?= stat_cell($feedbackCount) ?></div>
-            <div class="card-sub"><?= $feedbackCount===null?'No data':'All time' ?></div>
+            <h6 class="text-muted mb-1">Feedback Entries</h6>
+            <h3 class="fw-bold text-success"><?= (int)$totalFeedback ?></h3>
           </div>
-          <i class="bi bi-chat-dots fs-2 text-warning"></i>
+          <i class="bi bi-chat-dots stat-icon text-success"></i>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- Charts row -->
-  <div class="row g-3 mb-3">
-    <!-- Bookings Overview (small line chart for screenshot) -->
+  <!-- 🌈 CHARTS SECTION -->
+  <div class="row g-4">
     <div class="col-lg-8">
-      <div class="card p-3 h-100 shadow-sm">
-        <h6 class="fw-bold text-primary mb-2">Bookings Overview</h6>
-        <?php if (array_sum($counts) === 0): ?>
-          <div class="text-muted">No data yet</div>
-        <?php else: ?>
-          <div style="height:180px">
-            <canvas id="bookingsChart"></canvas>
-          </div>
-          <script>
-            (() => {
-              const ctx = document.getElementById('bookingsChart');
-              new Chart(ctx, {
-                type: 'line',
-                data: {
-                  labels: <?= json_encode($labels) ?>,
-                  datasets: [{
-                    label: 'Bookings',
-                    data: <?= json_encode($counts) ?>,
-                    tension: 0.25,
-                    borderWidth: 2,
-                    fill: false,
-                    pointRadius: 2,
-                    pointHoverRadius: 3
-                  }]
-                },
-                options: {
-                  responsive: true,
-                  maintainAspectRatio: true,
-                  layout: { padding: { top: 4, right: 6, bottom: 0, left: 0 } },
-                  plugins: { legend: { display: false } },
-                  scales: {
-                    x: { grid: { display: false } },
-                    y: { beginAtZero: true, ticks: { precision: 0 } }
-                  }
-                }
-              });
-            })();
-          </script>
-        <?php endif; ?>
+      <div class="card shadow-sm p-4">
+        <h5 class="fw-bold text-primary mb-3"><i class="bi bi-graph-up-arrow me-2"></i> Customer Satisfaction Ratings</h5>
+        <canvas id="ratingChart" height="140"></canvas>
       </div>
     </div>
 
-    <!-- Feedback Sources -->
     <div class="col-lg-4">
-      <div class="card p-3 h-100 shadow-sm">
-        <h6 class="fw-bold text-primary mb-2">Feedback Sources</h6>
-        <?php if (empty($fbSources)): ?>
-          <div class="text-muted">No data yet</div>
-        <?php else: ?>
-          <div style="height:180px">
-            <canvas id="fbChart"></canvas>
-          </div>
-          <script>
-            (() => {
-              const labels = <?= json_encode(array_column($fbSources,'s')) ?>;
-              const counts = <?= json_encode(array_map('intval', array_column($fbSources,'c'))) ?>;
-              new Chart(document.getElementById('fbChart'), {
-                type: 'doughnut',
-                data: { labels, datasets: [{ data: counts }] },
-                options: {
-                  responsive: true,
-                  maintainAspectRatio: true,
-                  plugins: { legend: { position: 'bottom' } }
-                }
-              });
-            })();
-          </script>
-        <?php endif; ?>
+      <div class="card shadow-sm p-4">
+        <h5 class="fw-bold text-secondary mb-3"><i class="bi bi-pie-chart-fill me-2"></i> Room Occupancy</h5>
+        <canvas id="roomChart" height="200"></canvas>
+        <p class="text-muted small mt-3 mb-0">
+          Booked Rooms: <strong><?= $bookedRooms ?></strong><br>
+          Available Rooms: <strong><?= $availableRooms ?></strong><br>
+          Total Rooms: <strong><?= $totalRooms ?></strong>
+        </p>
       </div>
     </div>
   </div>
-
-  <!-- Projects + Illustration (unchanged) -->
-  <div class="row g-3">
-    <div class="col-lg-6">
-      <div class="card p-3 h-100">
-        <h6 class="fw-bold text-primary mb-3">Projects</h6>
-
-        <h6 class="small fw-semibold mb-1">
-          Server Migration <span class="float-end card-sub">0%</span>
-        </h6>
-        <div class="progress mb-3"><div class="progress-bar bg-danger" style="width:0%"></div></div>
-
-        <h6 class="small fw-semibold mb-1">
-          Sales Tracking <span class="float-end card-sub">0%</span>
-        </h6>
-        <div class="progress mb-3"><div class="progress-bar bg-warning" style="width:0%"></div></div>
-
-        <h6 class="small fw-semibold mb-1">
-          Customer Database <span class="float-end card-sub">0%</span>
-        </h6>
-        <div class="progress mb-3"><div class="progress-bar bg-info" style="width:0%"></div></div>
-
-        <h6 class="small fw-semibold mb-1">
-          Payout Details <span class="float-end card-sub">0%</span>
-        </h6>
-        <div class="progress"><div class="progress-bar bg-success" style="width:0%"></div></div>
-      </div>
-    </div>
-
-    <div class="col-lg-6">
-      <div class="card p-3 h-100">
-        <h6 class="fw-bold text-primary mb-3">Illustrations</h6>
-        <div class="text-center p-4">
-          <i class="bi bi-images fs-1 text-secondary"></i>
-          <p class="mt-3 small text-muted mb-0">No artwork yet — add later.</p>
-        </div>
-      </div>
-    </div>
-  </div>
-
 </div>
 
-<?php include __DIR__ . '/partials/foot.php'; ?>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+// ⭐ Rating Bar Chart
+const ctx1 = document.getElementById('ratingChart');
+new Chart(ctx1, {
+  type: 'bar',
+  data: {
+    labels: ['1 Star', '2 Stars', '3 Stars', '4 Stars', '5 Stars'],
+    datasets: [{
+      label: 'Number of Feedbacks',
+      data: [<?= implode(',', $ratings) ?>],
+      backgroundColor: [
+        '#ff4d4d', '#ffb84d', '#ffe066', '#99e699', '#33cc33'
+      ],
+      borderRadius: 6
+    }]
+  },
+  options: {
+    responsive: true,
+    plugins: { legend: { display: false } },
+    scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } }
+  }
+});
 
+// 🥧 Room Occupancy Pie Chart
+const ctx2 = document.getElementById('roomChart');
+new Chart(ctx2, {
+  type: 'pie',
+  data: {
+    labels: ['Booked Rooms', 'Available Rooms'],
+    datasets: [{
+      data: [<?= $bookedRooms ?>, <?= $availableRooms ?>],
+      backgroundColor: ['#007bff', '#ffc107'],
+      borderWidth: 1
+    }]
+  },
+  options: {
+    plugins: { legend: { position: 'bottom' } }
+  }
+});
+</script>
+
+<?php include __DIR__.'/partials/foot.php'; ?>
