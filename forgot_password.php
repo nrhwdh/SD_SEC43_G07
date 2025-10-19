@@ -1,42 +1,42 @@
 <?php
-require_once __DIR__.'/auth.php';
+include('config.php');
 
-$msg = '';
-if ($_SERVER['REQUEST_METHOD']==='POST') {
-    $email = trim($_POST['email'] ?? '');
-    if ($email==='') {
-        $msg = '<div class="alert alert-danger">Please enter your email.</div>';
+if (isset($_POST['submit'])) {
+    $email = mysqli_real_escape_string($conn, $_POST['email']);
+    $query = "SELECT * FROM admin WHERE email='$email'";
+    $result = mysqli_query($conn, $query);
+
+    if (mysqli_num_rows($result) > 0) {
+        $token = bin2hex(random_bytes(50));
+        $expiry = date("Y-m-d H:i:s", strtotime("+1 hour"));
+        mysqli_query($conn, "UPDATE admin SET reset_token='$token', token_expiry='$expiry' WHERE email='$email'");
+
+        $reset_link = "http://localhost/ThePearl/reset_password.php?token=$token";
+        $subject = "Password Reset Request - The Pearl Hotel Admin";
+        $message = "
+            <h3>Password Reset Request</h3>
+            <p>Click the link below to reset your password:</p>
+            <a href='$reset_link'>Reset Password</a>
+            <p>This link will expire in 1 hour.</p>
+        ";
+
+        $headers = "MIME-Version: 1.0" . "\r\n";
+        $headers .= "Content-type:text/html;charset=UTF-8" . "\r\n";
+        $headers .= "From: The Pearl Hotel <noreply@thepearl.com>" . "\r\n";
+
+        if (mail($email, $subject, $message, $headers)) {
+            echo "<script>alert('Password reset link sent to your email.'); window.location='admin_login.php';</script>";
+        } else {
+            echo "<script>alert('Error sending email. Please try again later.');</script>";
+        }
     } else {
-        // dummy response — seolah reset link dihantar
-        $msg = '<div class="alert alert-info">
-                  A reset link will be send to the email.<br>
-               
-                </div>';
+        echo "<script>alert('Email not found. Please check again.');</script>";
     }
 }
-
-$page_title='Forgot Password';
-include __DIR__.'/partials/head.php';
 ?>
-<div class="login-hero d-flex align-items-center justify-content-center">
-  <div class="container py-5">
-    <div class="row justify-content-center"><div class="col-xl-5 col-lg-6">
-      <div class="card p-4 shadow-sm">
-        <h4 class="fw-bold mb-3">Forgot Your Password?</h4>
-        <?= $msg ?>
-        <form method="post" autocomplete="off">
-          <div class="mb-3">
-            <input class="form-control" type="email" name="email" placeholder="Enter your email address" required>
-          </div>
-          <div class="d-grid">
-            <button class="btn btn-primary" type="submit">Reset Password</button>
-          </div>
-        </form>
-        <div class="text-center mt-3">
-          <a href="login.php" class="btn btn-outline-secondary">Back to Login</a>
-        </div>
-      </div>
-    </div></div>
-  </div>
-</div>
-<?php include __DIR__.'/partials/foot.php'; ?>
+
+<form method="POST">
+    <h2>Forgot Password (Admin)</h2>
+    <input type="email" name="email" placeholder="Enter your registered email" required>
+    <button type="submit" name="submit">Send Reset Link</button>
+</form>
