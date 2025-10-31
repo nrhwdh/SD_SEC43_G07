@@ -1,0 +1,158 @@
+/* ===== OVERRIDE BOOTSTRAP NAVBAR LOGO ===== */
+.navbar-brand img,
+.navbar .brand-logo {
+  height: 100px !important;   /* tukar ikut suka: 80px / 90px / 110px */
+  max-height: none !important;
+  width: auto !important;
+  display: block;
+}
+
+/* Bagi navbar cukup tinggi supaya logo tak terpotong */
+.navbar {
+  padding-top: .4rem;
+  padding-bottom: .4rem;
+  min-height: 104px;   /* ~100px logo + padding */
+}
+
+/* Kecilkan sikit di mobile supaya tak terlalu tinggi */
+@media (max-width: 576px) {
+  .navbar-brand img,
+  .navbar .brand-logo {
+    height: 64px !important;
+  }
+  .navbar { min-height: 72px; }
+}
+
+/* Soft background like your other sections */
+.section-soft{
+  background: linear-gradient(180deg, #fafbfc 0%, #f4f5f6 100%);
+}
+
+/* Feature cards (Why Choose Us) */
+.about-feature{
+  background:#fff;
+  border:1px solid #eef0f2;
+  border-radius:16px;
+  padding:16px;
+  box-shadow:0 6px 18px rgba(0,0,0,.04);
+}
+.about-feature__icon{
+  font-size:1.8rem;
+  line-height:1;
+  margin-bottom:.35rem;
+}
+
+/* Timeline */
+.timeline{
+  position:relative;
+  padding-left:24px;
+  border-left:3px solid #e9ecef;
+}
+.timeline-item{
+  position:relative;
+  margin-bottom:18px;
+}
+.timeline-dot{
+  position:absolute;
+  left:-9px;      /* centers on the line */
+  top:.2rem;
+  width:12px;
+  height:12px;
+  background:#8a1538;   /* brand maroon */
+  border-radius:50%;
+  box-shadow:0 0 0 3px #fff;
+}
+.timeline-content{ padding-left:.23rem; }
+
+/* CTA card */
+.cta{
+  background: linear-gradient(135deg, #fff 0%, #ffeef3 100%);
+}
+
+/* ===== Timeline ===== */
+.timeline{
+  position: relative;
+  margin-left: .5rem;           /* jarak kecil dari kiri */
+  padding-top: .25rem;
+}
+
+/* garisan menegak */
+.timeline::before{
+  content: "";
+  position: absolute;
+  left: 14px;                   /* sejajarkan dengan dot */
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: #e9ecef;
+}
+
+/* setiap item */
+.timeline-item{
+  position: relative;
+  padding-left: 3.2rem;         /* <<< tambah ruang kiri untuk elak berlaga */
+  margin: 0 0 1.25rem 0;
+}
+
+/* dot merah */
+.timeline-dot{
+  position: absolute;
+  left: 8px;                    /* sejajar dengan line */
+  top: .55rem;                  /* laras kedudukan menegak dot */
+  width: 12px;
+  height: 12px;
+  border-radius: 9999px;
+  background: #a10f36;          /* warna brand */
+  border: 3px solid #fff;       /* ring putih */
+  box-shadow: 0 0 0 2px #e9ecef;/* ring kelabu supaya nampak kemas atas line */
+}
+
+/* teks tahun supaya tak rapat sangat */
+.timeline-content h6{
+  margin: 0 0 .25rem 0;
+  font-weight: 700;
+}
+.timeline-content p{
+  margin: 0;
+  color: #6c757d;
+}
+
+/* Footer */
+.site-footer{
+  background: linear-gradient(180deg, #ffffff 0%, #faf7f8 100%);
+  position: relative;
+}
+.footer-logo{
+  height:36px;
+  width: auto;
+}
+.footer-links li{ margin-bottom:.35rem; }
+.footer-links a,
+.footer-link{
+  color:#5b5b5b;
+  text-decoration:none;
+}
+.footer-links a:hover,
+.footer-link:hover{ color:#8a1538; }
+
+.footer-bottom{
+  background:#f5f1f3;
+  border-top:1px solid #eee;
+}
+
+.back-to-top{
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  width: 42px;
+  height: 42px;
+  border-radius: 999px;
+  border: 0;
+  background:#8a1538;
+  color:#fff;
+  font-weight:700;
+  box-shadow: 0 6px 20px rgba(0,0,0,.15);
+  cursor:pointer;
+  display:none;  /* shown via JS below */
+}
+.back-to-top:hover{ opacity:.92; }
